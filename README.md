@@ -98,16 +98,6 @@ Real-Time Messaging • Voice & Video Calls • Media Sharing • Groups • Sta
 
 ---
 
-## 📱 WhatsApp Inspired
-
-- Beautiful Dark Theme
-- Responsive UI
-- Mobile Friendly
-- Modern Sidebar
-- Clean Chat Layout
-
----
-
 # 🛠 Tech Stack
 
 ### Frontend
