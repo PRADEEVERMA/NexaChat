@@ -1,147 +1,296 @@
-# NexaChat
+# 💬 NexaChat
 
-Connect. Chat. Stay Together.
+<p align="center">
+  <img src="./image/Home.png" alt="NexaChat Banner" width="100%">
+</p>
 
-A production-ready MERN real-time chat application built for real users across multiple devices and browsers.
+<h3 align="center">
+🚀 A Modern Real-Time Chat Application
+</h3>
 
-## Features
+<p align="center">
+Built with <b>MERN Stack</b> • <b>Socket.IO</b> • <b>MongoDB Atlas</b> • <b>WebRTC</b> • <b>Cloudinary</b>
+</p>
 
-- Register, login, logout, protected routes, JWT auth, bcrypt password hashing
-- Login persistence with HTTP-only cookie plus bearer-token fallback
-- Registration and profile avatar upload
-- Online and offline presence
-- Last seen profile details
-- User search and registered-user directory
-- One-to-one real-time messaging with Socket.io
-- Typing indicators, timestamps, delivered and seen states
-- NexaBot welcome message for every new account
-- MongoDB-backed message history
-- Dark responsive WhatsApp and Discord inspired interface
-- Toast notifications, loading states, skeleton loaders
+<p align="center">
+Real-Time Messaging • Voice & Video Calls • Media Sharing • Groups • Status • Mobile Friendly
+</p>
 
-## Prerequisites
+<p align="center">
 
-- Node.js 20+
-- npm 10+
-- MongoDB running locally or a MongoDB Atlas connection string
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react)
+![NodeJS](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js)
+![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express)
+![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb)
+![Socket.IO](https://img.shields.io/badge/Socket.IO-010101?style=for-the-badge&logo=socket.io)
+![WebRTC](https://img.shields.io/badge/WebRTC-333333?style=for-the-badge)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-38B2AC?style=for-the-badge&logo=tailwind-css)
 
-## Environment Setup
+</p>
 
-Backend:
+---
+
+# ✨ Features
+
+## 🔐 Authentication
+
+- JWT Authentication
+- Secure Login & Register
+- Password Hashing (bcrypt)
+- Protected Routes
+- Persistent Login
+- Auto Authentication
+
+---
+
+## 💬 Real-Time Messaging
+
+- One-to-One Chat
+- Real-Time Messaging
+- Online / Offline Status
+- Typing Indicator
+- Seen / Delivered Status
+- Edit Message
+- Delete for Me
+- Delete for Everyone
+- Reply Message
+- Copy Message
+- Emoji Reactions
+
+---
+
+## 📷 Media Sharing
+
+- Image Upload
+- Camera Capture
+- File Upload
+- Image Preview
+- Fullscreen Viewer
+- Download Media
+
+---
+
+## 🎤 Voice Features
+
+- Voice Notes
+- Voice Recording
+- Audio Playback
+
+---
+
+## 📞 Voice & Video Calls
+
+- WebRTC Video Calling
+- Voice Calling
+- Accept / Reject Calls
+- Mute / Unmute
+- Camera On / Off
+- Live Call Status
+
+---
+
+## 👥 Groups
+
+- Create Group
+- Group Chat
+- Group Members
+- Group Admin
+
+---
+
+## 📱 WhatsApp Inspired
+
+- Beautiful Dark Theme
+- Responsive UI
+- Mobile Friendly
+- Modern Sidebar
+- Clean Chat Layout
+
+---
+
+# 🛠 Tech Stack
+
+### Frontend
+
+- React.js
+- Vite
+- Tailwind CSS
+- Zustand
+- Axios
+- React Router
+- Socket.IO Client
+
+### Backend
+
+- Node.js
+- Express.js
+- MongoDB Atlas
+- Mongoose
+- JWT
+- Bcrypt
+- Socket.IO
+- Cloudinary
+- Multer
+- WebRTC Signaling
+
+---
+
+# 📂 Folder Structure
+
+```text
+NexaChat
+│
+├── backend
+│   ├── src
+│   ├── routes
+│   ├── models
+│   ├── controllers
+│   ├── middleware
+│   ├── socket
+│   └── server.js
+│
+├── frontend
+│   ├── src
+│   ├── components
+│   ├── pages
+│   ├── layouts
+│   ├── hooks
+│   └── App.jsx
+│
+├── image
+│   ├── Home.png
+│   └── Loging.png
+│
+└── README.md
+```
+
+---
+
+# 📸 Screenshots
+
+## 🔑 Login Page
+
+<p align="center">
+<img src="./image/Loging.png" width="100%">
+</p>
+
+---
+
+## 💬 Chat Dashboard
+
+<p align="center">
+<img src="./image/Home.png" width="100%">
+</p>
+
+---
+
+# 🚀 Installation
+
+## Clone Repository
+
+```bash
+git clone https://github.com/PRADEEVERMA/NexaChat.git
+```
+
+---
+
+## Backend
 
 ```bash
 cd backend
-cp .env.example .env
+npm install
 ```
 
-Update `backend/.env`:
+Create `.env`
 
 ```env
 PORT=5000
-MONGODB_URI=mongodb://127.0.0.1:27017/nexachat
-JWT_SECRET=replace_with_a_long_random_secret
+
+MONGODB_URI=YOUR_MONGODB_URI
+
+JWT_SECRET=YOUR_SECRET
+
+JWT_EXPIRES_IN=7d
+
 CLIENT_URL=http://localhost:5173
+
+COOKIE_DOMAIN=
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
 ```
 
-Frontend:
+Run Backend
+
+```bash
+npm run dev
+```
+
+---
+
+## Frontend
 
 ```bash
 cd frontend
-cp .env.example .env
+
+npm install
+
+npm run dev
 ```
 
-Update `frontend/.env` if needed:
+---
+
+# 🌍 Environment Variables
+
+Backend
 
 ```env
-VITE_API_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
+PORT
+MONGODB_URI
+JWT_SECRET
+JWT_EXPIRES_IN
+CLIENT_URL
+COOKIE_DOMAIN
+CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
 ```
 
-## Install
+---
 
-From the project root:
+# 🚀 Upcoming Features
 
-```bash
-cd backend
-npm install
+- Status
+- Group Video Calls
+- Screen Sharing
+- Push Notifications
+- Progressive Web App (PWA)
+- Mobile App
+- End-to-End Encryption
 
-cd ../frontend
-npm install
-```
+---
 
-## Run
+# 👨‍💻 Developer
 
-Start MongoDB first.
+## Pradeep Verma
 
-Terminal 1:
+🎓 B.Tech Computer Science Engineering (2026)
 
-```bash
-cd backend
-npm run dev
-```
+💻 Full Stack MERN Developer
 
-Terminal 2:
+🌱 Passionate about Web Development, Real-Time Applications, and Scalable Backend Systems.
 
-```bash
-cd frontend
-npm run dev
-```
+---
 
-Open:
+# ⭐ Support
 
-```text
-http://localhost:5173
-```
+If you like this project, please give it a ⭐ on GitHub.
 
-## Production Build
+It helps and motivates me to build more amazing projects.
 
-```bash
-cd frontend
-npm run build
-```
+---
 
-```bash
-cd backend
-npm start
-```
-
-## Deployment
-
-Backend on Railway:
-
-1. Create a Railway service from the `backend` folder.
-2. Set `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CLIENT_URL`, and optional Cloudinary variables.
-3. Use `npm start` as the start command.
-
-Frontend on Vercel:
-
-1. Create a Vercel project from the `frontend` folder.
-2. Set `VITE_API_URL` to `https://your-railway-app.up.railway.app/api`.
-3. Set `VITE_SOCKET_URL` to `https://your-railway-app.up.railway.app`.
-4. Deploy after the backend URL is live.
-
-## API Routes
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-- `GET /api/users`
-- `GET /api/users/:id`
-- `PATCH /api/users/profile/me`
-- `GET /api/messages/:receiverId`
-- `POST /api/messages/send/:receiverId`
-
-## Socket Events
-
-- `connection`
-- `disconnect`
-- `user-online`
-- `user-offline`
-- `online-users`
-- `typing`
-- `stop-typing`
-- `send-message`
-- `receive-message`
-- `message-delivered`
-- `message-seen`
+<p align="center">
+Made with ❤️ by <b>Pradeep Verma</b>
+</p>
