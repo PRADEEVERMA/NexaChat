@@ -19,15 +19,12 @@
 
 html {
   height: 100%;
-  overflow: hidden;
 }
 
 body {
   min-width: 320px;
-  min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
-  overflow: hidden;
   overscroll-behavior: none;
   color: #f8fafc;
   background:
@@ -47,9 +44,15 @@ button {
 }
 
 #root {
-  height: 100vh;
   height: 100dvh;
-  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  html,
+  body,
+  #root {
+    overflow: hidden;
+  }
 }
 
 @supports (padding: max(0px)) {

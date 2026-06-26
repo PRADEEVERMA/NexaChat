@@ -106,7 +106,7 @@ const MessageInput = ({ receiverId, isGroup = false }) => {
   return (
     <form
       onSubmit={handleSubmit}
-      className="relative flex shrink-0 items-end gap-1.5 border-t border-white/10 bg-slate-950/90 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:p-3 md:p-4"
+      className="sticky bottom-0 z-20 flex shrink-0 items-end gap-1.5 border-t border-white/10 bg-slate-950/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:p-3 md:relative md:bg-slate-950/90 md:p-4"
     >
       {showEmojiPicker && (
         <div className="absolute bottom-16 left-2 right-2 grid grid-cols-6 gap-2 rounded-lg border border-white/10 bg-slate-950/95 p-3 shadow-xl sm:left-14 sm:right-auto">

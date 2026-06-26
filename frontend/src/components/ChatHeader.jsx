@@ -10,7 +10,7 @@ const ChatHeader = ({ user, isGroup = false, onBack }) => {
   const isOnline = onlineUsers.includes(user?._id) || user?.isOnline;
 
   return (
-    <header className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-slate-950/80 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:gap-3 sm:p-3 md:p-4">
+    <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-white/10 bg-slate-950/95 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:gap-3 sm:p-3 md:static md:bg-slate-950/80 md:p-4">
       <Button type="button" variant="ghost" className="h-10 w-10 shrink-0 px-0 lg:hidden" title="Back" onClick={onBack}>
         <ArrowLeft size={18} />
       </Button>

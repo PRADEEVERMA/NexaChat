@@ -120,7 +120,7 @@ const CameraCaptureModal = ({ open, onClose, onSend }) => {
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/85 p-3 backdrop-blur-sm">
-      <section className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-900 shadow-2xl">
+      <section className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-900 shadow-2xl">
         <header className="flex items-center justify-between border-b border-white/10 p-3">
           <div className="flex items-center gap-2 font-semibold">
             <Camera size={18} />

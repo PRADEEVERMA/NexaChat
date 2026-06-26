@@ -102,6 +102,19 @@ const Chat = () => {
   }, [visibleMessages, typingUsers, selectedConversation]);
 
   useEffect(() => {
+    if (!selectedConversation || !window.visualViewport) return undefined;
+
+    const scrollToLatest = () => {
+      window.requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      });
+    };
+
+    window.visualViewport.addEventListener("resize", scrollToLatest);
+    return () => window.visualViewport.removeEventListener("resize", scrollToLatest);
+  }, [selectedConversation]);
+
+  useEffect(() => {
     if (!socket || !selectedConversation || isGroupChat || messages.length === 0) return;
 
     const unseen = messages
@@ -114,8 +127,8 @@ const Chat = () => {
   }, [isGroupChat, messages, selectedConversation, socket]);
 
   return (
-    <main className="h-screen h-dvh overflow-hidden md:p-3 lg:p-4">
-      <div className="mx-auto grid h-full w-full max-w-full overflow-hidden lg:max-w-7xl lg:grid-cols-[350px_minmax(0,1fr)] lg:gap-3">
+    <main className="flex h-dvh min-h-0 flex-col md:block md:overflow-hidden md:p-3 lg:p-4">
+      <div className="mx-auto grid min-h-0 flex-1 w-full max-w-full overflow-visible md:h-full md:overflow-hidden lg:max-w-7xl lg:grid-cols-[350px_minmax(0,1fr)] lg:gap-3">
         <div className={selectedConversation ? "hidden lg:block" : "block min-h-0"}>
           <Sidebar search={search} setSearch={setSearch} onOpenProfile={() => setProfileOpen(true)} />
         </div>
@@ -124,7 +137,7 @@ const Chat = () => {
 
         {selectedConversation && (
           <section
-            className="flex h-full min-h-0 w-full max-w-full touch-pan-y flex-col overflow-hidden bg-slate-950/70 md:glass md:rounded-lg"
+            className="flex h-dvh min-h-0 w-full max-w-full touch-pan-y flex-col overflow-visible bg-slate-950/70 md:h-full md:overflow-hidden md:glass md:rounded-lg"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >

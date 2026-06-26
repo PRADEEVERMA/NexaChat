@@ -25,7 +25,7 @@ const Profile = () => {
   };
 
   return (
-    <main className="min-h-screen px-4 py-6">
+    <main className="min-h-dvh px-4 py-6">
       <section className="glass mx-auto max-w-3xl rounded-lg p-5 sm:p-8">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
