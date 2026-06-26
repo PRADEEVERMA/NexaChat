@@ -28,8 +28,8 @@ const Sidebar = ({ search, setSearch, onOpenProfile }) => {
   };
 
   return (
-    <aside className="glass flex h-full min-h-0 flex-col rounded-lg">
-      <header className="border-b border-white/10 p-4">
+    <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-950/70 md:glass md:rounded-lg">
+      <header className="shrink-0 border-b border-white/10 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-teal-300 to-pink-300 text-slate-950">
@@ -49,7 +49,7 @@ const Sidebar = ({ search, setSearch, onOpenProfile }) => {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2 sm:p-3">
         {isUsersLoading &&
           Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-16" />)}
 
@@ -97,16 +97,18 @@ const Sidebar = ({ search, setSearch, onOpenProfile }) => {
                 </button>
               </div>
               {groups.map((group) => (
-                <div
+                <button
+                  type="button"
                   key={group._id}
-                  className="flex w-full items-center gap-3 rounded-lg p-3 text-left"
+                  className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition hover:bg-white/5"
+                  onClick={() => setSelectedUser({ ...group, isGroup: true })}
                 >
                   <Avatar user={{ name: group.name, avatar: group.avatar }} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold text-slate-100">{group.name}</span>
                     <span className="text-xs text-slate-500">{group.members?.length || 0} members</span>
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           </>
@@ -121,7 +123,7 @@ const Sidebar = ({ search, setSearch, onOpenProfile }) => {
         )}
       </div>
 
-      <footer className="flex items-center gap-3 border-t border-white/10 p-4">
+      <footer className="shrink-0 flex items-center gap-3 border-t border-white/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
         <button type="button" title="Profile" onClick={onOpenProfile}>
           <Avatar user={authUser} online />
         </button>

@@ -5,8 +5,10 @@ import { statusApi } from "../api/statusApi.js";
 
 export const useSocialStore = create((set, get) => ({
   groups: [],
+  groupMessages: [],
   statuses: [],
   isGroupsLoading: false,
+  isGroupMessagesLoading: false,
   isStatusesLoading: false,
 
   getGroups: async (search = "") => {
@@ -36,6 +38,44 @@ export const useSocialStore = create((set, get) => ({
       toast.error(error.response?.data?.message || "Could not create group");
       return false;
     }
+  },
+
+  getGroupMessages: async (groupId) => {
+    if (!groupId) return;
+
+    set({ isGroupMessagesLoading: true, groupMessages: [] });
+    try {
+      const { data } = await groupApi.getMessages(groupId);
+      set({ groupMessages: data.messages });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not load group messages");
+    } finally {
+      set({ isGroupMessagesLoading: false });
+    }
+  },
+
+  sendGroupMessage: async (groupId, text) => {
+    if (typeof text === "string" && !text.trim()) return false;
+
+    try {
+      const payload = text instanceof FormData ? text : (() => {
+        const formData = new FormData();
+        formData.append("text", text);
+        return formData;
+      })();
+      const { data } = await groupApi.sendMessage(groupId, payload);
+      const existing = get().groupMessages.some((item) => item._id === data.message._id);
+      if (!existing) set({ groupMessages: [...get().groupMessages, data.message] });
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Group message failed");
+      return false;
+    }
+  },
+
+  appendGroupMessage: (message) => {
+    const existing = get().groupMessages.some((item) => item._id === message._id);
+    if (!existing) set({ groupMessages: [...get().groupMessages, message] });
   },
 
   getStatuses: async () => {

@@ -17,11 +17,18 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   color: #f8fafc;
   background:
     radial-gradient(circle at top left, rgba(45, 212, 191, 0.2), transparent 30%),
@@ -40,8 +47,9 @@ button {
 }
 
 #root {
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 @supports (padding: max(0px)) {

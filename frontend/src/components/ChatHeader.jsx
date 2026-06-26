@@ -4,24 +4,24 @@ import Button from "./Button.jsx";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { useCallStore } from "../store/useCallStore.js";
 
-const ChatHeader = ({ user, onBack }) => {
+const ChatHeader = ({ user, isGroup = false, onBack }) => {
   const { onlineUsers, socket } = useAuthStore();
   const { startCall } = useCallStore();
   const isOnline = onlineUsers.includes(user?._id) || user?.isOnline;
 
   return (
-    <header className="flex items-center gap-3 border-b border-white/10 p-4">
-      <Button type="button" variant="ghost" className="h-10 w-10 px-0 lg:hidden" title="Back" onClick={onBack}>
+    <header className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-slate-950/80 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:gap-3 sm:p-3 md:p-4">
+      <Button type="button" variant="ghost" className="h-10 w-10 shrink-0 px-0 lg:hidden" title="Back" onClick={onBack}>
         <ArrowLeft size={18} />
       </Button>
       <Avatar user={user} online={isOnline} />
       <div className="min-w-0 flex-1">
         <h2 className="truncate font-bold">{user?.name}</h2>
         <p className={isOnline ? "text-xs text-emerald-300" : "text-xs text-slate-500"}>
-          {isOnline ? "Online" : "Offline"}
+          {isGroup ? `${user?.members?.length || 0} members` : isOnline ? "Online" : "Offline"}
         </p>
       </div>
-      <div className="flex items-center gap-2">
+      {!isGroup && <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <Button
           type="button"
           variant="ghost"
@@ -40,7 +40,7 @@ const ChatHeader = ({ user, onBack }) => {
         >
           <Video size={17} />
         </Button>
-      </div>
+      </div>}
     </header>
   );
 };

@@ -15,7 +15,7 @@ const StatusIcon = ({ status }) => {
 const AttachmentPreview = ({ attachment, onOpenImage }) => {
   if (attachment.type === "image") {
     return (
-      <button type="button" className="mt-2 block overflow-hidden rounded-lg" onClick={() => onOpenImage(attachment)}>
+      <button type="button" className="mt-2 block max-w-full overflow-hidden rounded-lg" onClick={() => onOpenImage(attachment)}>
         <img
           src={attachment.url}
           alt={attachment.name || "Image"}
@@ -27,7 +27,7 @@ const AttachmentPreview = ({ attachment, onOpenImage }) => {
   }
 
   if (attachment.type === "video") {
-    return <video src={attachment.url} controls className="mt-2 max-h-72 rounded-lg" />;
+    return <video src={attachment.url} controls className="mt-2 max-h-72 w-full max-w-full rounded-lg" />;
   }
 
   if (attachment.type === "audio") {
@@ -54,7 +54,7 @@ const MenuButton = ({ children, icon: Icon, onClick }) => (
   </button>
 );
 
-const MessageBubble = ({ message, mine, user, latestSeen = false }) => {
+const MessageBubble = ({ message, mine, user, showSenderName = false, latestSeen = false }) => {
   const { editMessage, deleteMessage, reactToMessage } = useChatStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState(null);
@@ -104,7 +104,7 @@ const MessageBubble = ({ message, mine, user, latestSeen = false }) => {
   return (
     <>
       <div
-      className={cn("group flex items-end gap-2", mine ? "justify-end" : "justify-start")}
+      className={cn("group flex min-w-0 items-end gap-2", mine ? "justify-end" : "justify-start")}
       onContextMenu={(event) => {
         event.preventDefault();
         setMenuOpen(true);
@@ -115,13 +115,16 @@ const MessageBubble = ({ message, mine, user, latestSeen = false }) => {
       onTouchEnd={() => clearTimeout(longPressRef.current)}
     >
       {!mine && <Avatar user={user} size="sm" />}
-      <div className={cn("relative flex max-w-[86%] items-start gap-1 sm:max-w-[68%]", mine && "flex-row-reverse")}>
+      <div className={cn("relative flex max-w-[75%] min-w-0 items-start gap-1", mine && "flex-row-reverse")}>
         <div
           className={cn(
-            "rounded-2xl px-3 py-2 shadow-md",
+            "min-w-0 max-w-full overflow-hidden rounded-2xl px-3 py-2 shadow-md",
             mine ? "rounded-br-md bg-[#d9fdd3] text-slate-950" : "rounded-bl-md bg-slate-800 text-slate-100"
           )}
         >
+          {!mine && showSenderName && typeof user === "object" && (
+            <p className="mb-1 truncate text-xs font-bold text-teal-200">{user?.name}</p>
+          )}
           {message.replyTo && (
             <div className="mb-2 rounded border-l-2 border-slate-400/80 bg-black/10 px-2 py-1 text-xs opacity-80">
               {message.replyTo.text || "Attachment"}
@@ -133,7 +136,7 @@ const MessageBubble = ({ message, mine, user, latestSeen = false }) => {
             </p>
           ) : (
             <>
-              {message.text && <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</p>}
+              {message.text && <p className="whitespace-pre-wrap break-words text-sm leading-6 [overflow-wrap:anywhere]">{message.text}</p>}
               {message.attachments?.map((attachment) => (
                 <AttachmentPreview key={attachment.url} attachment={attachment} onOpenImage={setFullscreenImage} />
               ))}
@@ -158,7 +161,7 @@ const MessageBubble = ({ message, mine, user, latestSeen = false }) => {
 
         <button
           type="button"
-          className="mt-1 grid h-7 w-7 place-items-center rounded-full text-slate-400 opacity-0 transition hover:bg-white/10 hover:text-slate-100 group-hover:opacity-100 focus:opacity-100"
+          className="mt-1 hidden h-7 w-7 place-items-center rounded-full text-slate-400 opacity-0 transition hover:bg-white/10 hover:text-slate-100 group-hover:opacity-100 focus:opacity-100 sm:grid"
           title="Message options"
           onClick={(event) => {
             event.stopPropagation();
@@ -171,8 +174,8 @@ const MessageBubble = ({ message, mine, user, latestSeen = false }) => {
         {menuOpen && (
           <div
             className={cn(
-              "absolute top-8 z-20 w-48 overflow-hidden rounded-lg border border-white/10 bg-slate-950/95 py-1 text-sm text-slate-100 shadow-2xl",
-              mine ? "right-8" : "left-8"
+              "absolute top-8 z-20 w-48 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-white/10 bg-slate-950/95 py-1 text-sm text-slate-100 shadow-2xl",
+              mine ? "right-0 sm:right-8" : "left-0 sm:left-8"
             )}
             onClick={(event) => event.stopPropagation()}
           >

@@ -4,10 +4,11 @@ import Button from "./Button.jsx";
 import CameraCaptureModal from "./CameraCaptureModal.jsx";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { useChatStore } from "../store/useChatStore.js";
+import { useSocialStore } from "../store/useSocialStore.js";
 
 const emojis = ["😀", "😂", "😍", "🥰", "👍", "🙏", "🔥", "🎉", "💙", "✅", "😎", "😭"];
 
-const MessageInput = ({ receiverId }) => {
+const MessageInput = ({ receiverId, isGroup = false }) => {
   const [text, setText] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -18,6 +19,12 @@ const MessageInput = ({ receiverId }) => {
   const typingTimeoutRef = useRef(null);
   const { socket } = useAuthStore();
   const { sendMessage } = useChatStore();
+  const { sendGroupMessage } = useSocialStore();
+
+  const sendConversationMessage = useCallback(
+    (payload) => (isGroup ? sendGroupMessage(receiverId, payload) : sendMessage(receiverId, payload, socket)),
+    [isGroup, receiverId, sendGroupMessage, sendMessage, socket]
+  );
 
   const emitTyping = () => {
     if (!socket?.connected || !receiverId) return;
@@ -35,8 +42,8 @@ const MessageInput = ({ receiverId }) => {
     if (!value) return;
 
     setText("");
-    socket?.emit("stop-typing", { receiverId });
-    await sendMessage(receiverId, value, socket);
+    if (!isGroup) socket?.emit("stop-typing", { receiverId });
+    await sendConversationMessage(value);
   };
 
   const sendFiles = async (files) => {
@@ -47,7 +54,7 @@ const MessageInput = ({ receiverId }) => {
     Array.from(files).forEach((file) => formData.append("attachments", file));
     setText("");
     if (fileInputRef.current) fileInputRef.current.value = "";
-    await sendMessage(receiverId, formData, socket);
+    await sendConversationMessage(formData);
   };
 
   const closeCamera = useCallback(() => {
@@ -57,8 +64,8 @@ const MessageInput = ({ receiverId }) => {
   const sendCameraPhoto = useCallback(async (file) => {
     const formData = new FormData();
     formData.append("attachments", file);
-    return sendMessage(receiverId, formData, socket);
-  }, [receiverId, sendMessage, socket]);
+    return sendConversationMessage(formData);
+  }, [sendConversationMessage]);
 
   const startRecording = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -80,7 +87,7 @@ const MessageInput = ({ receiverId }) => {
       const file = new File([blob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
       const formData = new FormData();
       formData.append("attachments", file);
-      await sendMessage(receiverId, formData, socket);
+      await sendConversationMessage(formData);
     };
 
     recorder.start();
@@ -97,9 +104,12 @@ const MessageInput = ({ receiverId }) => {
   }, []);
 
   return (
-    <form onSubmit={handleSubmit} className="relative flex items-end gap-2 border-t border-white/10 p-3 sm:p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="relative flex shrink-0 items-end gap-1.5 border-t border-white/10 bg-slate-950/90 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:p-3 md:p-4"
+    >
       {showEmojiPicker && (
-        <div className="absolute bottom-20 left-14 grid grid-cols-6 gap-2 rounded-lg border border-white/10 bg-slate-950/95 p-3 shadow-xl">
+        <div className="absolute bottom-16 left-2 right-2 grid grid-cols-6 gap-2 rounded-lg border border-white/10 bg-slate-950/95 p-3 shadow-xl sm:left-14 sm:right-auto">
           {emojis.map((emoji) => (
             <button
               key={emoji}
@@ -123,7 +133,7 @@ const MessageInput = ({ receiverId }) => {
       <Button
         type="button"
         variant="ghost"
-        className="h-11 w-11 px-0"
+        className="h-10 w-10 shrink-0 px-0 sm:h-11 sm:w-11"
         title="Add media"
         onClick={() => fileInputRef.current?.click()}
       >
@@ -132,7 +142,7 @@ const MessageInput = ({ receiverId }) => {
       <Button
         type="button"
         variant="ghost"
-        className="h-11 w-11 px-0"
+        className="h-10 w-10 shrink-0 px-0 sm:h-11 sm:w-11"
         title="Open camera"
         onClick={() => setCameraOpen(true)}
       >
@@ -141,7 +151,7 @@ const MessageInput = ({ receiverId }) => {
       <Button
         type="button"
         variant="ghost"
-        className="h-11 w-11 px-0"
+        className="h-10 w-10 shrink-0 px-0 sm:h-11 sm:w-11"
         title="Emoji"
         onClick={() => setShowEmojiPicker((value) => !value)}
       >
@@ -151,7 +161,7 @@ const MessageInput = ({ receiverId }) => {
         value={text}
         onChange={(event) => {
           setText(event.target.value);
-          emitTyping();
+          if (!isGroup) emitTyping();
         }}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
@@ -161,18 +171,18 @@ const MessageInput = ({ receiverId }) => {
         }}
         rows={1}
         placeholder="Message"
-        className="max-h-36 min-h-11 flex-1 resize-none rounded-lg border border-slate-700/70 bg-slate-950/55 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-300/70 focus:ring-4 focus:ring-teal-300/10"
+        className="max-h-32 min-h-10 min-w-0 flex-1 resize-none rounded-lg border border-slate-700/70 bg-slate-950/55 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-300/70 focus:ring-4 focus:ring-teal-300/10 sm:min-h-11 sm:px-4 sm:py-3"
       />
       <Button
         type="button"
         variant={isRecording ? "primary" : "ghost"}
-        className="h-11 w-11 px-0"
+        className="h-10 w-10 shrink-0 px-0 sm:h-11 sm:w-11"
         title={isRecording ? "Stop recording" : "Record voice"}
         onClick={isRecording ? stopRecording : startRecording}
       >
         {isRecording ? <Square size={16} /> : <Mic size={18} />}
       </Button>
-      <Button type="submit" className="h-11 w-11 px-0" title="Send message">
+      <Button type="submit" className="h-10 w-10 shrink-0 px-0 sm:h-11 sm:w-11" title="Send message">
         <Send size={18} />
       </Button>
       <CameraCaptureModal open={cameraOpen} onClose={closeCamera} onSend={sendCameraPhoto} />

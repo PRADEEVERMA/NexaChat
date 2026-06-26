@@ -61,8 +61,11 @@ const ProfileSettingsModal = ({ open, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
-      <section className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-white/10 bg-slate-900 p-5 shadow-2xl">
+    <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/70 backdrop-blur-sm" onClick={onClose}>
+      <section
+        className="h-full w-full max-w-md overflow-y-auto overflow-x-hidden border-l border-white/10 bg-slate-900 p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl sm:p-5"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-bold">Profile</h2>
           <button type="button" className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10" onClick={onClose}>
