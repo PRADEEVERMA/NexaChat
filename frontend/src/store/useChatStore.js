@@ -4,28 +4,85 @@ import { messageApi } from "../api/messageApi.js";
 import { userApi } from "../api/userApi.js";
 import { showAppNotification } from "../utils/pwa.js";
 
+const socketSubscriptions = new WeakMap();
+
+const getId = (value) => {
+  if (!value) return null;
+  return typeof value === "object" ? value._id?.toString() : value.toString();
+};
+
+const createTempId = () =>
+  `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const matchesMessage = (message, incoming) =>
+  getId(message._id) === getId(incoming._id) ||
+  Boolean(
+    incoming.clientTempId &&
+      (message.clientTempId === incoming.clientTempId ||
+        getId(message._id) === incoming.clientTempId)
+  );
+
+const upsertMessage = (messages, incoming) => {
+  const index = messages.findIndex((message) =>
+    matchesMessage(message, incoming)
+  );
+
+  if (index === -1) return [...messages, incoming];
+
+  return messages.map((message, messageIndex) =>
+    messageIndex === index
+      ? { ...message, ...incoming, clientTempId: undefined }
+      : message
+  );
+};
+
+const updateMessagesById = (messages, messageIds, changes) => {
+  const ids = new Set(messageIds.map(getId).filter(Boolean));
+  if (!ids.size) return messages;
+
+  return messages.map((message) =>
+    ids.has(getId(message._id)) ? { ...message, ...changes } : message
+  );
+};
+
+const removeUnread = (unreadByUser, userId) => {
+  const nextUnread = { ...unreadByUser };
+  delete nextUnread[userId];
+  return nextUnread;
+};
+
 export const useChatStore = create((set, get) => ({
   users: [],
   selectedUser: null,
   messages: [],
   typingUsers: {},
   unreadByUser: {},
+  authUserId: null,
   isUsersLoading: false,
   isMessagesLoading: false,
 
   setSelectedUser: (user) => {
     if (!user) {
-      set({ selectedUser: null, messages: [] });
+      set({
+        selectedUser: null,
+        messages: [],
+        isMessagesLoading: false
+      });
       return;
     }
 
-    const unreadByUser = { ...get().unreadByUser };
-    delete unreadByUser[user._id];
-    set({ selectedUser: user, messages: [], unreadByUser, isMessagesLoading: true });
+    const userId = getId(user);
+    set({
+      selectedUser: user,
+      messages: [],
+      unreadByUser: removeUnread(get().unreadByUser, userId),
+      isMessagesLoading: true
+    });
   },
 
   getUsers: async (search = "") => {
     set({ isUsersLoading: true });
+
     try {
       const { data } = await userApi.getUsers(search);
       set({ users: data.users });
@@ -36,40 +93,88 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  getMessages: async (receiverId) => {
-    if (!receiverId) return;
+  getMessages: async (userId) => {
+    if (!userId) return;
 
+    const requestedUserId = getId(userId);
     set({ isMessagesLoading: true });
+
     try {
-      const { data } = await messageApi.getMessages(receiverId);
-      set({ messages: data.messages });
+      const { data } = await messageApi.getMessages(requestedUserId);
+      if (getId(get().selectedUser) === requestedUserId) {
+        set({
+          messages: data.messages,
+          unreadByUser: removeUnread(get().unreadByUser, requestedUserId)
+        });
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not load messages");
     } finally {
-      set({ isMessagesLoading: false });
+      if (getId(get().selectedUser) === requestedUserId) {
+        set({ isMessagesLoading: false });
+      }
     }
   },
 
-  sendMessage: async (receiverId, text, socket) => {
-    if (typeof text === "string" && !text.trim()) return;
+  sendMessage: async (receiverId, content, socket) => {
+    const isTextMessage = typeof content === "string";
+    const text = isTextMessage ? content.trim() : content;
+    if (isTextMessage && !text) return false;
 
-    if (socket?.connected && typeof text === "string") {
-      socket.emit("send-message", { receiverId, text }, (response) => {
-        if (!response?.success) {
-          toast.error(response?.message || "Message failed");
-          return;
+    if (isTextMessage && socket?.connected) {
+      const clientTempId = createTempId();
+      const now = new Date().toISOString();
+      const optimisticMessage = {
+        _id: clientTempId,
+        clientTempId,
+        senderId: get().authUserId,
+        receiverId,
+        text,
+        attachments: [],
+        reactions: [],
+        status: "sent",
+        createdAt: now,
+        updatedAt: now
+      };
+
+      set((state) => ({
+        messages: upsertMessage(state.messages, optimisticMessage)
+      }));
+
+      socket.emit(
+        "message:new",
+        { receiverId, text, clientTempId },
+        (response) => {
+          if (!response?.success || !response.message) {
+            set((state) => ({
+              messages: state.messages.filter(
+                (message) =>
+                  getId(message._id) !== clientTempId &&
+                  message.clientTempId !== clientTempId
+              )
+            }));
+            toast.error(response?.message || "Message failed");
+            return;
+          }
+
+          set((state) => ({
+            messages: upsertMessage(state.messages, {
+              ...response.message,
+              clientTempId
+            })
+          }));
         }
-        const existing = get().messages.some((item) => item._id === response.message._id);
-        if (!existing) set({ messages: [...get().messages, response.message] });
-      });
+      );
+
       return true;
     }
 
     try {
-      const payload =
-        text instanceof FormData ? text : { text };
+      const payload = content instanceof FormData ? content : { text };
       const { data } = await messageApi.sendMessage(receiverId, payload);
-      set({ messages: [...get().messages, data.message] });
+      set((state) => ({
+        messages: upsertMessage(state.messages, data.message)
+      }));
       return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Message failed");
@@ -80,145 +185,257 @@ export const useChatStore = create((set, get) => ({
   editMessage: async (messageId, text) => {
     try {
       const { data } = await messageApi.editMessage(messageId, text);
-      set({
-        messages: get().messages.map((message) =>
-          message._id === messageId ? data.message : message
-        )
-      });
+      set((state) => ({
+        messages: upsertMessage(state.messages, data.message)
+      }));
+      return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not edit message");
+      return false;
     }
   },
 
   deleteMessage: async (messageId, everyone = false) => {
     try {
       const { data } = await messageApi.deleteMessage(messageId, everyone);
-      if (everyone && data.message) {
-        set({
-          messages: get().messages.map((message) =>
-            message._id === messageId ? data.message : message
-          )
-        });
-        return;
-      }
-
-      set({ messages: get().messages.filter((message) => message._id !== messageId) });
+      set((state) => ({
+        messages:
+          everyone && data.message
+            ? upsertMessage(state.messages, data.message)
+            : state.messages.filter(
+                (message) => getId(message._id) !== getId(messageId)
+              )
+      }));
+      return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not delete message");
+      return false;
     }
   },
 
   reactToMessage: async (messageId, emoji) => {
     try {
       const { data } = await messageApi.reactToMessage(messageId, emoji);
-      set({
-        messages: get().messages.map((message) =>
-          message._id === messageId ? data.message : message
-        )
-      });
+      set((state) => ({
+        messages: upsertMessage(state.messages, data.message)
+      }));
+      return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not add reaction");
+      return false;
     }
   },
 
   subscribeToMessages: (socket, authUserId) => {
-    if (!socket) return;
+    if (!socket || !authUserId) return () => {};
 
-    socket.off("receive-message");
-    socket.off("message-delivered");
-    socket.off("message-seen");
-    socket.off("message-updated");
-    socket.off("message-deleted");
-    socket.off("typing");
-    socket.off("stop-typing");
-    socket.off("user-offline");
+    socketSubscriptions.get(socket)?.();
 
-    socket.on("receive-message", (message) => {
-      const { selectedUser, messages, unreadByUser } = get();
-      const belongsToOpenChat =
-        selectedUser?._id === message.senderId || selectedUser?._id === message.receiverId;
+    const currentUserId = getId(authUserId);
+    const processedIncomingIds = new Set();
+    set({ authUserId: currentUserId });
 
-      if (document.visibilityState === "hidden" && message.receiverId === authUserId) {
-        const sender = get().users.find((user) => user._id === message.senderId);
+    const handleNewMessage = (message) => {
+      const messageId = getId(message?._id);
+      const senderId = getId(message?.senderId);
+      const receiverId = getId(message?.receiverId);
+      if (!messageId || !senderId || !receiverId) return;
+
+      const state = get();
+      const selectedUserId = getId(state.selectedUser);
+      const isOwnMessage = senderId === currentUserId;
+      const isIncomingMessage =
+        receiverId === currentUserId && senderId !== currentUserId;
+      const isOpenConversation =
+        (isIncomingMessage && selectedUserId === senderId) ||
+        (isOwnMessage && selectedUserId === receiverId);
+
+      if (isOpenConversation) {
+        set((currentState) => ({
+          messages: upsertMessage(currentState.messages, message)
+        }));
+      }
+
+      if (!isIncomingMessage) return;
+
+      socket.emit("message:delivered", {
+        messageId,
+        senderId
+      });
+
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        const sender = state.users.find(
+          (user) => getId(user) === senderId
+        );
         showAppNotification({
           title: sender?.name || "New message",
           body: message.text || "Sent an attachment",
-          tag: `message-${message._id}`
+          tag: `message-${messageId}`
         });
       }
 
-      if (belongsToOpenChat) {
-        set({ messages: [...messages, message] });
-        socket.emit("message-seen", {
-          senderId: message.senderId,
-          messageIds: [message._id]
+      if (isOpenConversation) {
+        socket.emit("message:seen", {
+          senderId,
+          messageIds: [messageId]
         });
-      } else if (message.receiverId === authUserId) {
-        set({
-          unreadByUser: {
-            ...unreadByUser,
-            [message.senderId]: (unreadByUser[message.senderId] || 0) + 1
-          }
-        });
-      }
-    });
-
-    socket.on("message-delivered", (message) => {
-      const existing = get().messages.some((item) => item._id === message._id);
-      if (!existing && message.senderId === authUserId) {
-        set({ messages: [...get().messages, message] });
-      }
-    });
-
-    socket.on("message-seen", ({ messageIds }) => {
-      set({
-        messages: get().messages.map((message) =>
-          messageIds.includes(message._id) ? { ...message, status: "seen" } : message
-        )
-      });
-    });
-
-    socket.on("message-updated", (updatedMessage) => {
-      set({
-        messages: get().messages.map((message) =>
-          message._id === updatedMessage._id ? updatedMessage : message
-        )
-      });
-    });
-
-    socket.on("message-deleted", ({ messageId, everyone, message: deletedMessage }) => {
-      if (everyone && deletedMessage) {
-        set({
-          messages: get().messages.map((message) =>
-            message._id === messageId ? deletedMessage : message
+        set((currentState) => ({
+          unreadByUser: removeUnread(
+            currentState.unreadByUser,
+            senderId
           )
-        });
+        }));
         return;
       }
 
-      set({ messages: get().messages.filter((message) => message._id !== messageId) });
-    });
+      if (!processedIncomingIds.has(messageId)) {
+        processedIncomingIds.add(messageId);
+        set((currentState) => ({
+          unreadByUser: {
+            ...currentState.unreadByUser,
+            [senderId]: (currentState.unreadByUser[senderId] || 0) + 1
+          }
+        }));
+      }
+    };
 
-    socket.on("typing", ({ senderId }) => {
-      set({ typingUsers: { ...get().typingUsers, [senderId]: true } });
-    });
+    const handleDelivered = (payload = {}) => {
+      const messageIds =
+        payload.messageIds || (payload._id ? [payload._id] : []);
+      set((state) => ({
+        messages: updateMessagesById(state.messages, messageIds, {
+          status: "delivered",
+          deliveredAt: payload.deliveredAt || new Date().toISOString()
+        })
+      }));
+    };
 
-    socket.on("stop-typing", ({ senderId }) => {
-      const nextTypingUsers = { ...get().typingUsers };
-      delete nextTypingUsers[senderId];
-      set({ typingUsers: nextTypingUsers });
-    });
+    const handleSeen = (payload = {}) => {
+      const messageIds = payload.messageIds || [];
+      const seenAt = payload.seenAt || new Date().toISOString();
+      set((state) => ({
+        messages: updateMessagesById(state.messages, messageIds, {
+          status: "seen",
+          deliveredAt: seenAt,
+          seenAt
+        })
+      }));
+    };
 
-    socket.on("user-offline", ({ userId, lastSeen }) => {
-      const nextUsers = get().users.map((user) =>
-        user._id === userId ? { ...user, isOnline: false, lastSeen } : user
-      );
-      const selectedUser = get().selectedUser;
-      set({
-        users: nextUsers,
-        selectedUser:
-          selectedUser?._id === userId ? { ...selectedUser, isOnline: false, lastSeen } : selectedUser
+    const handleMessageUpdate = (message) => {
+      if (!message?._id) return;
+      set((state) => ({
+        messages: upsertMessage(state.messages, message)
+      }));
+    };
+
+    const handleDeleted = (payload = {}) => {
+      const { messageId, everyone, message } = payload;
+      if (!messageId) return;
+
+      set((state) => ({
+        messages:
+          everyone && message
+            ? upsertMessage(state.messages, message)
+            : state.messages.filter(
+                (item) => getId(item._id) !== getId(messageId)
+              )
+      }));
+    };
+
+    const handleTyping = ({ senderId } = {}) => {
+      const id = getId(senderId);
+      if (!id) return;
+      set((state) => ({
+        typingUsers: { ...state.typingUsers, [id]: true }
+      }));
+    };
+
+    const handleStopTyping = ({ senderId } = {}) => {
+      const id = getId(senderId);
+      if (!id) return;
+
+      set((state) => {
+        const typingUsers = { ...state.typingUsers };
+        delete typingUsers[id];
+        return { typingUsers };
       });
-    });
+    };
+
+    const handleUserOffline = ({ userId, lastSeen } = {}) => {
+      const offlineUserId = getId(userId);
+      if (!offlineUserId) return;
+
+      set((state) => ({
+        users: state.users.map((user) =>
+          getId(user) === offlineUserId
+            ? { ...user, isOnline: false, lastSeen }
+            : user
+        ),
+        selectedUser:
+          getId(state.selectedUser) === offlineUserId
+            ? { ...state.selectedUser, isOnline: false, lastSeen }
+            : state.selectedUser
+      }));
+    };
+
+    const listeners = [
+      ["message:new", handleNewMessage],
+      ["receive-message", handleNewMessage],
+      ["message:delivered", handleDelivered],
+      ["message-delivered", handleDelivered],
+      ["message:seen", handleSeen],
+      ["message-seen", handleSeen],
+      ["message:edited", handleMessageUpdate],
+      ["message:deleted", handleDeleted],
+      ["message:reaction", handleMessageUpdate],
+      ["message-updated", handleMessageUpdate],
+      ["message-deleted", handleDeleted],
+      ["typing", handleTyping],
+      ["stop-typing", handleStopTyping],
+      ["user-offline", handleUserOffline]
+    ];
+
+    listeners.forEach(([event, handler]) => socket.on(event, handler));
+
+    const unsubscribe = () => {
+      listeners.forEach(([event, handler]) => socket.off(event, handler));
+      if (socketSubscriptions.get(socket) === unsubscribe) {
+        socketSubscriptions.delete(socket);
+      }
+    };
+
+    socketSubscriptions.set(socket, unsubscribe);
+    return unsubscribe;
+  },
+
+  markConversationSeen: (socket, senderId) => {
+    if (!socket || !senderId) return;
+
+    const currentUserId = get().authUserId;
+    const senderUserId = getId(senderId);
+    const messageIds = get()
+      .messages.filter(
+        (message) =>
+          getId(message.senderId) === senderUserId &&
+          getId(message.receiverId) === currentUserId &&
+          message.status !== "seen" &&
+          !getId(message._id)?.startsWith("temp-")
+      )
+      .map((message) => getId(message._id));
+
+    set((state) => ({
+      unreadByUser: removeUnread(state.unreadByUser, senderUserId)
+    }));
+
+    if (messageIds.length) {
+      socket.emit("message:seen", {
+        senderId: senderUserId,
+        messageIds
+      });
+    }
   }
 }));

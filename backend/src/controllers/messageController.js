@@ -3,7 +3,7 @@ import { Message } from "../models/Message.js";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { emitToUser, getReceiverSocketIds } from "../socket/index.js";
+import { emitToUser } from "../socket/index.js";
 import { uploadFile } from "../utils/uploadFile.js";
 
 const validateReceiver = async (receiverId, currentUserId) => {
@@ -35,27 +35,6 @@ export const getMessages = asyncHandler(async (req, res) => {
     .populate("replyTo")
     .sort({ createdAt: 1 });
 
-  const unseenIncomingIds = messages
-    .filter(
-      (message) =>
-        message.senderId.toString() === receiverId &&
-        message.receiverId.toString() === req.user._id.toString() &&
-        message.status !== "seen"
-    )
-    .map((message) => message._id);
-
-  await Message.updateMany(
-    { senderId: receiverId, receiverId: req.user._id, status: { $ne: "seen" } },
-    { status: "seen" }
-  );
-
-  if (unseenIncomingIds.length) {
-    emitToUser(receiverId, "message-seen", {
-      messageIds: unseenIncomingIds.map((id) => id.toString()),
-      seenBy: req.user._id.toString()
-    });
-  }
-
   res.status(200).json({ success: true, messages });
 });
 
@@ -73,17 +52,16 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
   await validateReceiver(receiverId, req.user._id);
 
-  const receiverSocketIds = getReceiverSocketIds(receiverId);
   const message = await Message.create({
     senderId: req.user._id,
     receiverId,
     text: text.trim(),
     attachments,
     replyTo: replyTo || null,
-    status: receiverSocketIds.length ? "delivered" : "sent"
+    status: "sent"
   });
 
-  emitToUser(receiverId, "receive-message", message);
+  emitToUser(receiverId, "message:new", message);
 
   res.status(201).json({ success: true, message });
 });
@@ -102,6 +80,8 @@ export const editMessage = asyncHandler(async (req, res) => {
 
   if (!message) throw new AppError("Message not found", 404);
 
+  emitToUser(message.receiverId, "message:edited", message);
+  emitToUser(message.senderId, "message:edited", message);
   emitToUser(message.receiverId, "message-updated", message);
   res.status(200).json({ success: true, message });
 });
@@ -136,9 +116,12 @@ export const deleteMessage = asyncHandler(async (req, res) => {
   await message.save();
 
   if (everyone) {
+    emitToUser(message.receiverId, "message:deleted", { messageId, everyone, message });
+    emitToUser(message.senderId, "message:deleted", { messageId, everyone, message });
     emitToUser(message.receiverId, "message-deleted", { messageId, everyone, message });
     emitToUser(message.senderId, "message-deleted", { messageId, everyone, message });
   } else {
+    emitToUser(req.user._id, "message:deleted", { messageId, everyone });
     emitToUser(req.user._id, "message-deleted", { messageId, everyone });
   }
 
@@ -169,6 +152,8 @@ export const reactToMessage = asyncHandler(async (req, res) => {
   message.reactions.push({ userId: req.user._id, emoji });
   await message.save();
 
+  emitToUser(message.receiverId, "message:reaction", message);
+  emitToUser(message.senderId, "message:reaction", message);
   emitToUser(message.receiverId, "message-updated", message);
   emitToUser(message.senderId, "message-updated", message);
 

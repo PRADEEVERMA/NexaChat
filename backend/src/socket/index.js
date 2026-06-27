@@ -23,6 +23,37 @@ const emitOnlineUsers = () => {
   io.emit("online-users", Array.from(userSocketMap.keys()));
 };
 
+const emitMessageUpdate = (userId, event, payload) => {
+  emitToUser(userId, event, payload);
+};
+
+const markIncomingAsDelivered = async (receiverId) => {
+  const deliveredAt = new Date();
+  const messages = await Message.find({
+    receiverId,
+    status: "sent"
+  });
+
+  if (!messages.length) return;
+
+  const messageIds = messages.map((message) => message._id);
+  await Message.updateMany(
+    { _id: { $in: messageIds }, status: "sent" },
+    { status: "delivered", deliveredAt }
+  );
+
+  messages.forEach((message) => {
+    const payload = {
+      messageIds: [message._id.toString()],
+      receiverId: receiverId.toString(),
+      deliveredAt
+    };
+    emitMessageUpdate(message.senderId, "message:delivered", payload);
+    emitMessageUpdate(message.senderId, "message-delivered", payload);
+    emitMessageUpdate(receiverId, "message:delivered", payload);
+  });
+};
+
 const clearCallTimer = (callId) => {
   const timer = callTimeouts.get(callId?.toString());
   if (timer) clearTimeout(timer);
@@ -68,6 +99,7 @@ export const initializeSocket = (server) => {
     await User.findByIdAndUpdate(userId, { isOnline: true, lastSeen: new Date() });
     socket.broadcast.emit("user-online", userId);
     emitOnlineUsers();
+    await markIncomingAsDelivered(userId);
 
     socket.on("typing", ({ receiverId }) => {
       emitToUser(receiverId, "typing", { senderId: userId });
@@ -77,34 +109,98 @@ export const initializeSocket = (server) => {
       emitToUser(receiverId, "stop-typing", { senderId: userId });
     });
 
-    socket.on("send-message", async ({ receiverId, text }, ack) => {
+    const handleNewMessage = async ({ receiverId, text, clientTempId }, ack) => {
       try {
         if (!text?.trim()) return;
 
-        const receiverSocketIds = getReceiverSocketIds(receiverId);
         const message = await Message.create({
           senderId: userId,
           receiverId,
           text: text.trim(),
-          status: receiverSocketIds.length ? "delivered" : "sent"
+          status: "sent"
         });
 
-        emitToUser(receiverId, "receive-message", message);
+        const payload = { ...message.toObject(), clientTempId };
+        socket.emit("message:new", payload);
+        emitToUser(receiverId, "message:new", message);
 
-        socket.emit("message-delivered", message);
-        if (typeof ack === "function") ack({ success: true, message });
+        if (typeof ack === "function") ack({ success: true, message, clientTempId });
       } catch (error) {
         if (typeof ack === "function") ack({ success: false, message: error.message });
       }
+    };
+
+    socket.on("message:new", handleNewMessage);
+
+    socket.on("send-message", async (payload, ack) => {
+      await handleNewMessage(payload, ack);
     });
 
-    socket.on("message-seen", async ({ messageIds = [], senderId }) => {
+    const handleDelivered = async ({ messageId, messageIds = [], senderId }) => {
+      const ids = messageId ? [messageId] : messageIds;
+      if (!ids.length) return;
+
+      const deliveredAt = new Date();
+      const messages = await Message.find({
+        _id: { $in: ids },
+        receiverId: userId,
+        status: "sent"
+      });
+
+      if (!messages.length) return;
+
       await Message.updateMany(
-        { _id: { $in: messageIds }, receiverId: userId },
-        { status: "seen" }
+        { _id: { $in: messages.map((message) => message._id) }, receiverId: userId, status: "sent" },
+        { status: "delivered", deliveredAt }
       );
 
-      emitToUser(senderId, "message-seen", { messageIds, seenBy: userId });
+      const payload = {
+        messageIds: messages.map((message) => message._id.toString()),
+        receiverId: userId,
+        deliveredAt
+      };
+      const targetSenderId = senderId || messages[0].senderId;
+      emitToUser(targetSenderId, "message:delivered", payload);
+      emitToUser(targetSenderId, "message-delivered", payload);
+      socket.emit("message:delivered", payload);
+    };
+
+    socket.on("message:delivered", handleDelivered);
+
+    const handleSeen = async ({ senderId, messageIds = [] }) => {
+      if (!senderId) return;
+
+      const seenAt = new Date();
+      const query = {
+        senderId,
+        receiverId: userId,
+        status: { $ne: "seen" }
+      };
+      if (messageIds.length) query._id = { $in: messageIds };
+
+      const messages = await Message.find(query);
+      if (!messages.length) return;
+
+      const ids = messages.map((message) => message._id);
+      await Message.updateMany(
+        { _id: { $in: ids }, receiverId: userId },
+        { status: "seen", seenAt, deliveredAt: seenAt }
+      );
+
+      const payload = {
+        messageIds: ids.map((id) => id.toString()),
+        seenBy: userId,
+        seenAt
+      };
+      emitToUser(senderId, "message:seen", payload);
+      emitToUser(senderId, "message-seen", payload);
+      socket.emit("message:seen", payload);
+    };
+
+    socket.on("message:seen", handleSeen);
+
+    socket.on("message-seen", async (payload) => {
+      await handleSeen(payload);
     });
 
     socket.on("join-group", ({ groupId }) => {
