@@ -1,4 +1,4 @@
-# 💬 NexaChat
+# 💬 NexaChat – Real-Time Chat Application
 
 <p align="center">
   <img src="./image/Home.png" alt="NexaChat Banner" width="100%">
