@@ -213,12 +213,18 @@ export const initializeSocket = (server) => {
 
     socket.on("call-user", async ({ receiverId, offer, callType }, ack) => {
       try {
-        if (!receiverId || !offer?.type || !offer?.sdp) {
+        if (
+          !receiverId ||
+          receiverId === userId ||
+          !["audio", "video"].includes(callType) ||
+          offer?.type !== "offer" ||
+          !offer?.sdp
+        ) {
           if (typeof ack === "function") ack({ success: false, message: "Invalid call offer" });
           return;
         }
 
-        console.log("Offer Received", { callerId: userId, receiverId, callType });
+        console.log("[WebRTC] Offer received", { callerId: userId, receiverId, callType });
         const call = await Call.create({
           callerId: userId,
           receiverId,
@@ -245,59 +251,104 @@ export const initializeSocket = (server) => {
         emitToUser(receiverId, "incoming-call", {
           callId,
           caller: socket.user,
-          offer,
+          offer: { type: offer.type, sdp: offer.sdp },
           callType
         });
       } catch (error) {
-        console.error("Offer handling failed", error);
+        console.error("[WebRTC] Offer handling failed", error);
         if (typeof ack === "function") ack({ success: false, message: "Could not start call" });
       }
     });
 
     socket.on("accept-call", async ({ receiverId, answer, callId }) => {
       try {
-        if (!receiverId || !answer?.type || !answer?.sdp) return;
+        if (!receiverId || answer?.type !== "answer" || !answer?.sdp || !callId) return;
 
-        console.log("Answer Received", { receiverId, answererId: userId, callId });
+        const call = await Call.findOne({
+          _id: callId,
+          callerId: receiverId,
+          receiverId: userId,
+          status: { $in: ["calling", "ringing"] }
+        });
+        if (!call) return;
+
+        console.log("[WebRTC] Answer received", { receiverId, answererId: userId, callId });
         clearCallTimer(callId);
-        if (callId) {
-          await Call.findByIdAndUpdate(callId, {
-            status: "connected",
-            answeredAt: new Date()
-          });
-        }
-        emitToUser(receiverId, "call-answered", { answer, userId, callId });
+        call.status = "connected";
+        call.answeredAt = new Date();
+        await call.save();
+        emitToUser(receiverId, "call-answered", {
+          answer: { type: answer.type, sdp: answer.sdp },
+          userId,
+          callId
+        });
       } catch (error) {
-        console.error("Answer handling failed", error);
+        console.error("[WebRTC] Answer handling failed", error);
       }
     });
 
-    socket.on("ice-candidate", ({ receiverId, candidate, callId }) => {
-      if (!receiverId || !candidate) return;
+    socket.on("ice-candidate", async ({ receiverId, candidate, callId }) => {
+      try {
+        if (!receiverId || !candidate?.candidate || !callId) return;
 
-      console.log("ICE Received", { from: userId, receiverId, callId });
-      emitToUser(receiverId, "ice-candidate", { candidate, userId, callId });
+        const call = await Call.findOne({
+          _id: callId,
+          status: { $in: ["calling", "ringing", "connected"] },
+          $or: [
+            { callerId: userId, receiverId },
+            { callerId: receiverId, receiverId: userId }
+          ]
+        }).select("_id");
+        if (!call) return;
+
+        console.log("[WebRTC] ICE relayed", { from: userId, receiverId, callId });
+        emitToUser(receiverId, "ice-candidate", {
+          candidate,
+          userId,
+          callId
+        });
+      } catch (error) {
+        console.error("[WebRTC] ICE relay failed", error);
+      }
     });
 
     socket.on("reject-call", async ({ receiverId, callId }) => {
+      if (!receiverId || !callId) return;
+
+      const call = await Call.findOne({
+        _id: callId,
+        status: { $in: ["calling", "ringing"] },
+        $or: [
+          { callerId: userId, receiverId },
+          { callerId: receiverId, receiverId: userId }
+        ]
+      });
+      if (!call) return;
+
       clearCallTimer(callId);
-      if (callId) {
-        await Call.findByIdAndUpdate(callId, {
-          status: "rejected",
-          endedAt: new Date()
-        });
-      }
+      call.status = "rejected";
+      call.endedAt = new Date();
+      await call.save();
       emitToUser(receiverId, "reject-call", { userId, callId });
     });
 
     socket.on("call-ended", async ({ receiverId, callId }) => {
+      if (!receiverId || !callId) return;
+
+      const call = await Call.findOne({
+        _id: callId,
+        status: { $in: ["calling", "ringing", "connected"] },
+        $or: [
+          { callerId: userId, receiverId },
+          { callerId: receiverId, receiverId: userId }
+        ]
+      });
+      if (!call) return;
+
       clearCallTimer(callId);
-      if (callId) {
-        await Call.findByIdAndUpdate(callId, {
-          status: "ended",
-          endedAt: new Date()
-        });
-      }
+      call.status = "ended";
+      call.endedAt = new Date();
+      await call.save();
       emitToUser(receiverId, "call-ended", { userId, callId });
     });
 
@@ -310,6 +361,27 @@ export const initializeSocket = (server) => {
         const lastSeen = new Date();
         await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen });
         socket.broadcast.emit("user-offline", { userId, lastSeen });
+
+        const disconnectedCalls = await Call.find({
+          status: { $in: ["calling", "ringing", "connected"] },
+          $or: [{ callerId: userId }, { receiverId: userId }]
+        });
+
+        for (const call of disconnectedCalls) {
+          clearCallTimer(call._id);
+          call.status = "ended";
+          call.endedAt = new Date();
+          await call.save();
+
+          const otherUserId =
+            call.callerId.toString() === userId
+              ? call.receiverId
+              : call.callerId;
+          emitToUser(otherUserId, "call-ended", {
+            userId,
+            callId: call._id.toString()
+          });
+        }
       }
       emitOnlineUsers();
     });

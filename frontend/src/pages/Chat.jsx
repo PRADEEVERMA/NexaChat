@@ -94,7 +94,7 @@ const Chat = () => {
   }, [socket, authUser?._id, subscribeToMessages]);
 
   useEffect(() => {
-    subscribeToCalls(socket);
+    return subscribeToCalls(socket);
   }, [socket, subscribeToCalls]);
 
   useEffect(() => {
